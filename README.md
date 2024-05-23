@@ -1,1 +1,1 @@
-Implementaton of mv command in C
+Implementing the mv command in C for the UFS2 file system
