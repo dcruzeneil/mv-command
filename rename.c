@@ -18,7 +18,6 @@
 
 
 /* function prototypes */
-void moveFile(struct direct*, struct direct*);
 void traverseDirectBlocks(char*, struct fs*, int, int, int, int64_t*, char[MAXIMUM_PATH_DEPTH][MAXIMUM_PATH_SIZE], int*);
 int64_t traverseDirectories(int, int64_t*, int64_t, int, struct fs*, char*, char[MAXIMUM_PATH_DEPTH][MAXIMUM_PATH_SIZE], int, int*);
 int tokenizePath(char*, char[MAXIMUM_PATH_DEPTH][MAXIMUM_PATH_SIZE]);
@@ -29,14 +28,12 @@ int
 main(int argc, char *argv[]){
     /* checking proper usage of the command */
     if(argc < 4){
-        printf("USAGE: ./mv [DISK IMG] [SOURCE] [DESTINATION]\n");
+        printf("USAGE: ./rename [DISK IMG] [SOURCE] [NEW NAME]\n");
     }
 
     /* tokenizing the SOURCE and TARGET */
     char source[MAXIMUM_PATH_DEPTH][MAXIMUM_PATH_SIZE];
-    char destination[MAXIMUM_PATH_DEPTH][MAXIMUM_PATH_SIZE];
     int source_depth = tokenizePath(argv[2], source);
-    int destination_depth = tokenizePath(argv[3], destination);
 
     /* opening the raw image of the disk partition */
     int fd = open(argv[1], O_RDWR);
@@ -64,59 +61,39 @@ main(int argc, char *argv[]){
     struct fs *superblock = (struct fs*)(address + SUPER_BLOCK_OFFSET); 
     
     /* traversing the memory blocks of root inode to identify source */
-    int final_flag = 0;
-    int *final_flag_pointer = &final_flag;
-
+    int file_found = 0;
     int64_t source_dir_int;
-    traverseDirectBlocks(address, superblock, UFS_ROOTINO, ROOT_LEVEL, source_depth - 1, &source_dir_int, source, final_flag_pointer);
+    traverseDirectBlocks(address, superblock, UFS_ROOTINO, ROOT_LEVEL, source_depth - 1, &source_dir_int, source, &file_found);
     struct direct *source_dir = (struct direct*) source_dir_int;
+    strcpy(source_dir->d_name, argv[3]);
 
-    /* traversing the memory blocks of root inode to identify target */
-    final_flag = 0;
-
-    int64_t destination_dir_int;
-    traverseDirectBlocks(address, superblock, UFS_ROOTINO, ROOT_LEVEL, destination_depth - 1, &destination_dir_int, destination, final_flag_pointer);
-    struct direct *destination_dir = (struct direct*) destination_dir_int;
-    while(destination_dir->d_ino != 0){
-        destination_dir = (struct direct*)((int64_t)(destination_dir) + destination_dir->d_reclen);
+    /* freeing up the mapping */
+    if(munmap(address, partition_size) == -1){
+        exit(1);
     }
-
-    /* moving the file */
-    moveFile(source_dir, destination_dir);
-}
-
-void moveFile(struct direct *source, struct direct *destination){
-    destination->d_ino = source->d_ino;
-    destination->d_reclen = source->d_reclen;
-    destination->d_type = source->d_type;
-    destination->d_namlen = source->d_namlen;
-    strcpy(destination->d_name, source->d_name);
-
-    source->d_ino = 0;
 }
 
 void 
-traverseDirectBlocks(char *address, struct fs *superblock, int inode_number, int level, int max_depth, int64_t *target_dir_int, char path_arr[MAXIMUM_PATH_DEPTH][MAXIMUM_PATH_SIZE], int *final_flag_pointer){
+traverseDirectBlocks(char *address, struct fs *superblock, int inode_number, int level, int max_depth, int64_t *target_dir_int, char path_arr[MAXIMUM_PATH_DEPTH][MAXIMUM_PATH_SIZE], int *file_found){
     struct ufs2_dinode *inode = inodeAddress(address, superblock, inode_number);
     int64_t size = inode->di_size;
     for(int i = 0; i < UFS_NDADDR; i++){
         if(size <= 0){
             break;
         }
-        size -= traverseDirectories(inode->di_db[i], target_dir_int, size, max_depth, superblock, address, path_arr, level, final_flag_pointer);
-        if(*final_flag_pointer == 1){
+        size -= traverseDirectories(inode->di_db[i], target_dir_int, size, max_depth, superblock, address, path_arr, level, file_found);
+        if(*file_found == 1){
             break;
         }
     }
 }
 
 int64_t 
-traverseDirectories(int block_number, int64_t *target_dir_int, int64_t size_left, int max_depth, struct fs *superblock, char *address, char path_arr[MAXIMUM_PATH_DEPTH][MAXIMUM_PATH_SIZE], int level, int *final_flag_pointer){
+traverseDirectories(int block_number, int64_t *target_dir_int, int64_t size_left, int max_depth, struct fs *superblock, char *address, char path_arr[MAXIMUM_PATH_DEPTH][MAXIMUM_PATH_SIZE], int level, int *file_found){
     struct direct *dir_beginning = dirAddress(address, block_number);
     int64_t current_dir_int = (int64_t) dir_beginning;
     struct direct *current_dir;
     int64_t size_traverse = BLOCK_SIZE > size_left ? BLOCK_SIZE : size_left;
-    int current_iteration_done = 0;
 
     for(; current_dir_int < current_dir_int + size_traverse; current_dir_int += current_dir->d_reclen){
         current_dir = (struct direct*) current_dir_int;
@@ -125,18 +102,15 @@ traverseDirectories(int block_number, int64_t *target_dir_int, int64_t size_left
             // we have found the final file
             if(level == max_depth){
                 *target_dir_int = current_dir_int;
-                *final_flag_pointer = 1;
+                *file_found = 1;
                 return current_dir_int - (int64_t) dir_beginning;
             }
-            current_iteration_done = 1;
-            traverseDirectBlocks(address, superblock, current_dir->d_ino, level + 1, max_depth, target_dir_int, path_arr, final_flag_pointer);
+            traverseDirectBlocks(address, superblock, current_dir->d_ino, level + 1, max_depth, target_dir_int, path_arr, file_found);
         }
-        if(current_iteration_done == 1){
-            return current_dir_int - (int64_t) dir_beginning;
+        // we found the exact directory we were looking for 
+        if(*file_found == 1){
+            return current_dir_int - (int64_t) dir_beginning;            
         }
-    }
-    if(current_iteration_done == 0){
-        printf("Invalid Path\n");
     }
     return current_dir_int - (int64_t) dir_beginning;
 }

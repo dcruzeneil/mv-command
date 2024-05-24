@@ -1,8 +1,8 @@
 CFLAGS=-Wall -pedantic
 
-mv : mv.c
-	gcc $(CFLAGS) -o mv mv.c 
+rename : rename.c
+	gcc $(CFLAGS) -o rename rename.c 
 
 .PHONY: clean
 clean: 
-	rm -f mv
+	rm -f rename
