@@ -3,5 +3,5 @@ Implementing a C program that uses the structures used to represent a file in UF
 Usage:
 ./rename [PATH TO RAW IMAGE OF DISK PARTITION] [FILE/DIRECTORY TO RENAME] [NEW NAME]
 
-Limitations:
-No error handling in case wrong path is provided.
+
+
