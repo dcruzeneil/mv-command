@@ -29,6 +29,7 @@ main(int argc, char *argv[]){
     /* checking proper usage of the command */
     if(argc < 4){
         printf("USAGE: ./rename [DISK IMG] [SOURCE] [NEW NAME]\n");
+        exit(1);
     }
 
     /* tokenizing the SOURCE and TARGET */
@@ -64,6 +65,10 @@ main(int argc, char *argv[]){
     int file_found = 0;
     int64_t source_dir_int;
     traverseDirectBlocks(address, superblock, UFS_ROOTINO, ROOT_LEVEL, source_depth - 1, &source_dir_int, source, &file_found);
+    if(file_found == 0 || file_found == -1){
+        printf("Invalid Path\n");
+        exit(1);
+    }
     struct direct *source_dir = (struct direct*) source_dir_int;
     strcpy(source_dir->d_name, argv[3]);
 
@@ -82,7 +87,8 @@ traverseDirectBlocks(char *address, struct fs *superblock, int inode_number, int
             break;
         }
         size -= traverseDirectories(inode->di_db[i], target_dir_int, size, max_depth, superblock, address, path_arr, level, file_found);
-        if(*file_found == 1){
+        // break either when we have found the file or when there is no way to find the file
+        if(*file_found == 1 || *file_found == -1){
             break;
         }
     }
@@ -92,13 +98,17 @@ int64_t
 traverseDirectories(int block_number, int64_t *target_dir_int, int64_t size_left, int max_depth, struct fs *superblock, char *address, char path_arr[MAXIMUM_PATH_DEPTH][MAXIMUM_PATH_SIZE], int level, int *file_found){
     struct direct *dir_beginning = dirAddress(address, block_number);
     int64_t current_dir_int = (int64_t) dir_beginning;
+    int64_t dir_beginning_int = (int64_t) dir_beginning;
     struct direct *current_dir;
-    int64_t size_traverse = BLOCK_SIZE > size_left ? BLOCK_SIZE : size_left;
+    int64_t size_traverse = BLOCK_SIZE > size_left ? size_left : BLOCK_SIZE;
+    int current_level_found = 0;
 
-    for(; current_dir_int < current_dir_int + size_traverse; current_dir_int += current_dir->d_reclen){
+    for(; current_dir_int < dir_beginning_int + size_traverse; current_dir_int += current_dir->d_reclen){
         current_dir = (struct direct*) current_dir_int;
         // we have found the file on the current level 
         if(strcmp(current_dir->d_name, path_arr[level]) == 0){
+            // we have found the direct struct in the current depth
+            current_level_found = 1;
             // we have found the final file
             if(level == max_depth){
                 *target_dir_int = current_dir_int;
@@ -107,9 +117,12 @@ traverseDirectories(int block_number, int64_t *target_dir_int, int64_t size_left
             }
             traverseDirectBlocks(address, superblock, current_dir->d_ino, level + 1, max_depth, target_dir_int, path_arr, file_found);
         }
-        // we found the exact directory we were looking for 
-        if(*file_found == 1){
-            return current_dir_int - (int64_t) dir_beginning;            
+        if(current_level_found == 1){
+            if(*file_found == 0){
+                // if we were able to find current level but file found still remains 0 that means the path is invalid: however we must think of size variable
+                *file_found = -1;
+            }
+            return current_dir_int - (int64_t) dir_beginning;
         }
     }
     return current_dir_int - (int64_t) dir_beginning;
