@@ -16,8 +16,8 @@ This program uses the structures representing files in UFS2 (Unix File System) -
 <ol>
   <li>Directory Content Size Assumptions:</li>
   <ul>
-    <li>Assumes all directory contents fit within the 32K $\times$ 12 chunks of memory specified within the $di_db$ (direct access blocks).</li>
-    <li>Does not check indirect blocks $di_ib$ for the existence of the specified directory.</li>
+    <li>Assumes all directory contents fit within the 32K $\times$ 12 chunks of memory specified within the <i>di_db</i> (direct access blocks).</li>
+    <li>Does not check indirect blocks <i>di_ib</i> for the existence of the specified directory.</li>
   </ul>
   <li>File Name Length Change:</li>
   <ul>
