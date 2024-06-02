@@ -24,7 +24,7 @@ This program uses the structures representing files in UFS2 (Unix File System) -
     <li>Changing the name of the directory/file also changes the length of the associated direct structure.</li>
     <li>UFS2 uses the smallest amount of space needed to store the current directory name (capped at 255 characters or bytes).</li>
     <li>If the old file name is 20 bytes, using a new name which is 14 bytes is acceptable but wasteful.</li>
-    <li>However, writing a new name exceeding the old name's length (e.g., writing 25 bytes, when old size was 20 bytes) may (and most probably will) cause data corruption by overwriting parts of the subsequent direct structures (a type of unintended overflow).</li>
+    <li>However, writing a new name exceeding the old name's length (e.g., writing 25 bytes, when the old size was 20 bytes) may (and most probably will) cause data corruption by overwriting parts of the subsequent direct structures (a type of unintended overflow).</li>
   </ul>
 </ol>
 
